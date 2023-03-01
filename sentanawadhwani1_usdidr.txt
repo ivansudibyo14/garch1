@@ -1,0 +1,54 @@
+# Import the necessary libraries
+import numpy as np
+import pandas as pd
+
+# Load the data for the exchange rate between USD and IDR
+exchange_rate = pd.read_csv('exchange_rate_usd_idr.csv')
+
+# Calculate the return of the exchange rate
+exchange_rate_return = exchange_rate.pct_change()
+
+# Calculate the conditional variance of the return of the exchange rate
+conditional_variance_return = exchange_rate_return.var()
+
+# Load the data for the US Federal Reserve interest rate
+fed_interest_rate = pd.read_csv('fed_interest_rate.csv')
+
+# Standardize the data
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+fed_interest_rate = scaler.fit_transform(fed_interest_rate)
+conditional_variance_return = scaler.transform(conditional_variance_return)
+
+# Define the Sentana-Wadhwani return volatility model
+def sentana_wadhwani_return_volatility_model(data, a, k, phi0, phi1, phi2):
+    # Initialize the arrays for the predicted return and positive feedback trading parameter
+    R_pred = np.zeros(len(data))
+    pftp_pred = np.zeros(len(data))
+
+    # Loop through the data and calculate the predicted return and positive feedback trading parameter
+    for t in range(1, len(data)):
+        R_pred[t] = a + k * conditional_variance_return[t] + phi0 * R_pred[t-1] + phi1 * conditional_variance_return[t] * R_pred[t-1] + phi2 * np.abs(R_pred[t-1]) + np.random.normal(0, 1)
+        pftp_pred[t] = phi1 * conditional_variance_return[t] / R_pred[t]
+
+    return R_pred, pftp_pred
+
+# Estimate the model parameters
+a = 0.0
+k = 0.1
+phi0 = 0.0
+phi1 = 0.1
+phi2 = 0.0
+R_pred, pftp_pred = sentana_wadhwani_return_volatility_model(exchange_rate_return, a, k, phi0, phi1, phi2)
+
+# Perform a historical analysis of the positive feedback trading parameter
+import matplotlib.pyplot as plt
+plt.plot(pftp_pred)
+plt.xlabel('Time')
+plt.ylabel('Positive Feedback Trading Parameter')
+plt.show()
+
+# Run the causality analysis
+from statsmodels.tsa.vector_ar import causality as ca
+results = ca.granger_causality(fed_interest_rate, pftp_pred)
+print
